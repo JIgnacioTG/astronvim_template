@@ -4,32 +4,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOL_DIR="$ROOT_DIR/.ruby-tools/3.4.5"
 GEMFILE="$TOOL_DIR/Gemfile"
-RUBY_VERSION="3.4.5"
 VENDOR_PATH="$TOOL_DIR/vendor/bundle"
 
-detect_manager() {
-  if command -v rbenv >/dev/null 2>&1; then
-    printf '%s\n' rbenv
-    return
-  fi
-
-  if command -v rvm >/dev/null 2>&1; then
-    printf '%s\n' rvm
-    return
-  fi
-
-  printf '%s\n' "Install rbenv or rvm, then run scripts/setup-ruby-tools" >&2
-  exit 1
-}
+. "$ROOT_DIR/scripts/lib/ruby-3.4.5-toolchain"
 
 ensure_ruby() {
   case "$1" in
+    system)
+      ;;
     rbenv)
-      rbenv install -s "$RUBY_VERSION"
+      rbenv install -s "$RUBY_345_VERSION"
       ;;
     rvm)
-      if ! rvm list strings | grep -qx "$RUBY_VERSION"; then
-        rvm install "$RUBY_VERSION"
+      if ! rvm_ruby_matches; then
+        rvm install "$RUBY_345_VERSION"
       fi
       ;;
     *)
@@ -41,14 +29,19 @@ ensure_ruby() {
 
 ensure_bundler() {
   case "$1" in
+    system)
+      if ! run_system_ruby_345_gem list -i bundler >/dev/null 2>&1; then
+        run_system_ruby_345_gem install bundler
+      fi
+      ;;
     rbenv)
-      if ! RBENV_VERSION="$RUBY_VERSION" rbenv exec gem list -i bundler >/dev/null 2>&1; then
-        RBENV_VERSION="$RUBY_VERSION" rbenv exec gem install bundler
+      if ! RBENV_VERSION="$RUBY_345_VERSION" rbenv exec gem list -i bundler >/dev/null 2>&1; then
+        RBENV_VERSION="$RUBY_345_VERSION" rbenv exec gem install bundler
       fi
       ;;
     rvm)
-      if ! rvm "$RUBY_VERSION" do gem list -i bundler >/dev/null 2>&1; then
-        rvm "$RUBY_VERSION" do gem install bundler
+      if ! rvm "$RUBY_345_VERSION" do gem list -i bundler >/dev/null 2>&1; then
+        rvm "$RUBY_345_VERSION" do gem install bundler
       fi
       ;;
     *)
@@ -63,11 +56,14 @@ bundle_with_manager() {
   shift
 
   case "$manager" in
+    system)
+      run_system_ruby_345_bundle "$GEMFILE" "$VENDOR_PATH" "$@"
+      ;;
     rbenv)
-      RBENV_VERSION="$RUBY_VERSION" BUNDLE_GEMFILE="$GEMFILE" BUNDLE_PATH="$VENDOR_PATH" rbenv exec bundle "$@"
+      RBENV_VERSION="$RUBY_345_VERSION" BUNDLE_GEMFILE="$GEMFILE" BUNDLE_PATH="$VENDOR_PATH" rbenv exec bundle "$@"
       ;;
     rvm)
-      BUNDLE_GEMFILE="$GEMFILE" BUNDLE_PATH="$VENDOR_PATH" rvm "$RUBY_VERSION" do bundle "$@"
+      BUNDLE_GEMFILE="$GEMFILE" BUNDLE_PATH="$VENDOR_PATH" rvm "$RUBY_345_VERSION" do bundle "$@"
       ;;
     *)
       printf '%s\n' "Unknown Ruby manager: $manager" >&2
@@ -78,7 +74,7 @@ bundle_with_manager() {
 
 main() {
   local manager
-  manager="$(detect_manager)"
+  manager="$(detect_ruby_345_setup_source)"
 
   mkdir -p "$VENDOR_PATH"
   cd "$TOOL_DIR"
