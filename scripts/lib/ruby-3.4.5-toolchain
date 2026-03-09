@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+
+RUBY_345_VERSION="3.4.5"
+
+ruby_345_missing_message() {
+  printf '%s\n' "Ruby 3.4.5 is required. Install it or run scripts/setup-ruby-tools" >&2
+}
+
+system_ruby_345_path() {
+  local ruby_path
+
+  while IFS= read -r ruby_path; do
+    case "$ruby_path" in
+      */.rbenv/shims/*|*/rbenv/shims/*|*/.rvm/*|*/rvm/*)
+        continue
+        ;;
+    esac
+
+    if [ "$("$ruby_path" -e 'print RUBY_VERSION' 2>/dev/null)" = "$RUBY_345_VERSION" ]; then
+      printf '%s\n' "$ruby_path"
+      return 0
+    fi
+  done < <(type -ap ruby 2>/dev/null)
+
+  return 1
+}
+
+system_ruby_345_tool_path() {
+  local ruby_path="$1"
+  local tool_name="$2"
+  local tool_path
+
+  tool_path="$(dirname "$ruby_path")/$tool_name"
+  [ -x "$tool_path" ] || return 1
+
+  printf '%s\n' "$tool_path"
+}
+
+run_system_ruby_345_gem() {
+  local ruby_path
+  local gem_path
+
+  ruby_path="$(system_ruby_345_path)" || return 1
+
+  if gem_path="$(system_ruby_345_tool_path "$ruby_path" gem)"; then
+    "$gem_path" "$@"
+    return
+  fi
+
+  "$ruby_path" -S gem "$@"
+}
+
+run_system_ruby_345_bundle() {
+  local gemfile="$1"
+  local vendor_path="$2"
+  local ruby_path
+  local bundle_path
+  shift 2
+
+  ruby_path="$(system_ruby_345_path)" || return 1
+
+  if bundle_path="$(system_ruby_345_tool_path "$ruby_path" bundle)"; then
+    env BUNDLE_GEMFILE="$gemfile" BUNDLE_PATH="$vendor_path" "$bundle_path" "$@"
+    return
+  fi
+
+  env BUNDLE_GEMFILE="$gemfile" BUNDLE_PATH="$vendor_path" "$ruby_path" -S bundle "$@"
+}
+
+exec_system_ruby_345_bundle() {
+  local gemfile="$1"
+  local vendor_path="$2"
+  local ruby_path
+  local bundle_path
+  shift 2
+
+  ruby_path="$(system_ruby_345_path)" || exit 1
+
+  if bundle_path="$(system_ruby_345_tool_path "$ruby_path" bundle)"; then
+    exec env BUNDLE_GEMFILE="$gemfile" BUNDLE_PATH="$vendor_path" "$bundle_path" "$@"
+  fi
+
+  exec env BUNDLE_GEMFILE="$gemfile" BUNDLE_PATH="$vendor_path" "$ruby_path" -S bundle "$@"
+}
+
+system_ruby_matches() {
+  system_ruby_345_path >/dev/null 2>&1
+}
+
+rbenv_ruby_matches() {
+  command -v rbenv >/dev/null 2>&1 || return 1
+  [ "$(RBENV_VERSION="$RUBY_345_VERSION" rbenv exec ruby -e 'print RUBY_VERSION' 2>/dev/null)" = "$RUBY_345_VERSION" ]
+}
+
+rvm_ruby_matches() {
+  command -v rvm >/dev/null 2>&1 || return 1
+  [ "$(rvm "$RUBY_345_VERSION" do ruby -e 'print RUBY_VERSION' 2>/dev/null)" = "$RUBY_345_VERSION" ]
+}
+
+detect_ruby_345_manager() {
+  if system_ruby_matches; then
+    printf '%s\n' system
+    return
+  fi
+
+  if rbenv_ruby_matches; then
+    printf '%s\n' rbenv
+    return
+  fi
+
+  if rvm_ruby_matches; then
+    printf '%s\n' rvm
+    return
+  fi
+
+  ruby_345_missing_message
+  return 1
+}
+
+detect_ruby_345_setup_source() {
+  if system_ruby_matches; then
+    printf '%s\n' system
+    return
+  fi
+
+  if rbenv_ruby_matches; then
+    printf '%s\n' rbenv
+    return
+  fi
+
+  if rvm_ruby_matches; then
+    printf '%s\n' rvm
+    return
+  fi
+
+  if command -v rbenv >/dev/null 2>&1; then
+    printf '%s\n' rbenv
+    return
+  fi
+
+  if command -v rvm >/dev/null 2>&1; then
+    printf '%s\n' rvm
+    return
+  fi
+
+  ruby_345_missing_message
+  return 1
+}
+
+run_with_ruby_345() {
+  local gemfile="$1"
+  local vendor_path="$2"
+  local manager
+  shift 2
+
+  manager="$(detect_ruby_345_manager)" || exit 1
+
+  case "$manager" in
+    system)
+      exec_system_ruby_345_bundle "$gemfile" "$vendor_path" "$@"
+      ;;
+    rbenv)
+      exec env RBENV_VERSION="$RUBY_345_VERSION" BUNDLE_GEMFILE="$gemfile" BUNDLE_PATH="$vendor_path" rbenv exec bundle "$@"
+      ;;
+    rvm)
+      exec env BUNDLE_GEMFILE="$gemfile" BUNDLE_PATH="$vendor_path" rvm "$RUBY_345_VERSION" do bundle "$@"
+      ;;
+  esac
+}
