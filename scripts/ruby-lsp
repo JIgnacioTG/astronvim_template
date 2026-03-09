@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TOOL_DIR="$ROOT_DIR/.ruby-tools/3.4.5"
+GEMFILE="$TOOL_DIR/Gemfile"
+VENDOR_PATH="$TOOL_DIR/vendor/bundle"
+RUBY_VERSION="3.4.5"
+
+run_tool() {
+  if command -v rbenv >/dev/null 2>&1; then
+    exec env RBENV_VERSION="$RUBY_VERSION" BUNDLE_GEMFILE="$GEMFILE" BUNDLE_PATH="$VENDOR_PATH" rbenv exec bundle exec ruby-lsp "$@"
+  fi
+
+  if command -v rvm >/dev/null 2>&1; then
+    exec env BUNDLE_GEMFILE="$GEMFILE" BUNDLE_PATH="$VENDOR_PATH" rvm "$RUBY_VERSION" do bundle exec ruby-lsp "$@"
+  fi
+
+  printf '%s\n' "Install rbenv or rvm, then run scripts/setup-ruby-tools" >&2
+  exit 1
+}
+
+run_tool "$@"

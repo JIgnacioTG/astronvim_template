@@ -1,0 +1,7 @@
+.ruby-tools/*/vendor/
+.ruby-tools/*/.bundle/
+
+# Superpowers
+docs/plans/
+.worktrees/
+
