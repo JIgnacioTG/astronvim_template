@@ -3,6 +3,29 @@
 -- NOTE: We highly recommend setting up the Lua Language Server (`:LspInstall lua_ls`)
 --       as this provides autocomplete and documentation while editing
 
+local function env_exists(name)
+  local value = vim.env[name]
+  return value ~= nil and value ~= ""
+end
+
+local function has_clipboard_tool()
+  local executable = vim.fn.executable
+
+  if executable("pbcopy") == 1 and executable("pbpaste") == 1 then return true end
+  if env_exists("WAYLAND_DISPLAY") and executable("wl-copy") == 1 and executable("wl-paste") == 1 then return true end
+  if env_exists("WAYLAND_DISPLAY") and executable("waycopy") == 1 and executable("waypaste") == 1 then return true end
+  if env_exists("DISPLAY") and executable("xsel") == 1 then return true end
+  if env_exists("DISPLAY") and executable("xclip") == 1 then return true end
+  if env_exists("TMUX") and executable("tmux") == 1 then return true end
+  if executable("termux-clipboard-set") == 1 and executable("termux-clipboard-get") == 1 then return true end
+
+  return false
+end
+
+local global_options = {}
+
+if not has_clipboard_tool() then global_options.clipboard = "osc52" end
+
 ---@type LazySpec
 return {
   "AstroNvim/astrocore",
@@ -44,11 +67,7 @@ return {
         signcolumn = "yes", -- sets vim.opt.signcolumn to yes
         wrap = true, -- sets vim.opt.wrap
       },
-      g = { -- vim.g.<key>
-        -- configure global vim variables (vim.g)
-        -- NOTE: `mapleader` and `maplocalleader` must be set in the AstroNvim opts or before `lazy.setup`
-        -- This can be found in the `lua/lazy_setup.lua` file
-      },
+      g = global_options,
     },
     -- Mappings can be configured through AstroCore as well.
     -- NOTE: keycodes follow the casing in the vimdocs. For example, `<Leader>` must be capitalized
